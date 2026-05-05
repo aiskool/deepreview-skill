@@ -1,0 +1,14 @@
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Local test scratch
+.claude/review/
+
+# Local-only configuration
+.env
+.env.local
