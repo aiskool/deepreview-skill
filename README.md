@@ -1,3 +1,7 @@
+################################################################################################
+					DEEPREVIEW
+################################################################################################
+
 # deepreview-skill
 
 Two complementary multi-agent code-quality skills for Claude Code,
@@ -41,6 +45,9 @@ deepreview                          # diff vs default branch
 deepreview PR 1234                  # specific GitHub PR
 deepreview against origin/develop   # diff vs another base
 ```
+################################################################################################
+					DEEPAUDIT
+################################################################################################
 
 ## deepaudit — audit of existing code
 
@@ -73,6 +80,10 @@ deepaudit src/auth/ src/billing/    # all six, on the union of paths
 Valid axes: `security`, `architecture`, `bugs`, `performance`,
 `tests`, `docs`. Synonyms accepted: `bug-hunter`, `test-coverage`,
 `documentation`.
+
+################################################################################################
+					INSTALLATION
+################################################################################################
 
 ## Install
 
@@ -113,6 +124,10 @@ chmod +x .claude/skills/deepaudit/detect-runtime.sh
 After installation, restart your Claude Code session so the new
 agents are loaded.
 
+################################################################################################
+					RUNTIME SUPPORT
+################################################################################################
+
 ## Runtime support
 
 The runtime detector recognizes Node (npm/yarn/pnpm/bun), Python
@@ -132,6 +147,10 @@ work; executable axes fall back to static-only verification.
   semantic layer.
 - **Not a replacement for human review.** A reviewer who knows the
   product, the users, and the roadmap catches what no agent will.
+
+################################################################################################
+					SAFETY
+################################################################################################
 
 ## Safety
 
