@@ -1,6 +1,6 @@
 ---
 name: reviewer-test-coverage
-description: Identifies test gaps in a diff: untested branches, missing
+description: Identifies test gaps in a diff. Catches untested branches, missing
   happy-path coverage, missing failure-mode coverage, and tests whose
   names do not match what they actually assert. Runs the project's
   coverage tool to ground findings in real data. Read-only on source.

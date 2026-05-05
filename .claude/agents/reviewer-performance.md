@@ -1,6 +1,6 @@
 ---
 name: reviewer-performance
-description: Spots performance issues introduced by a diff: N+1 queries,
+description: Spots performance issues introduced by a diff. Targets N+1 queries,
   algorithmic complexity regressions, blocking I/O in hot paths,
   unbounded reads, unnecessary allocations, missing pagination, and
   async/sync mismatches. May execute targeted micro-benchmarks to
