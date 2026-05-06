@@ -81,7 +81,13 @@ Valid axes: `security`, `architecture`, `bugs`, `performance`,
 
 ## Install
 
-### Quick install (recommended)
+The repository ships two installer scripts: a Bash one for Unix-like
+shells (macOS, Linux, or Windows with WSL/Git Bash) and a PowerShell
+one for native Windows. Both honour the same environment-variable
+protocol (`DEEPREVIEW_SCOPE`, `DEEPREVIEW_REF`, `DEEPREVIEW_REPO`,
+`DEEPREVIEW_SKILLS`) and produce identical layouts under `.claude/`.
+
+### macOS, Linux, or Windows with WSL/Git Bash
 
 Review the install script first, then run it. The script installs
 both skills into `.claude/` of the current git repository.
@@ -89,28 +95,65 @@ both skills into `.claude/` of the current git repository.
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aiskool/deepreview-skill/main/install.sh -o /tmp/deepreview-install.sh
 less /tmp/deepreview-install.sh   # review before running
-DEEPREVIEW_REF=v0.2.0 bash /tmp/deepreview-install.sh
+DEEPREVIEW_REF=v0.2.1 bash /tmp/deepreview-install.sh
 ```
 
 For a global install (available in every project):
 
 ```bash
-DEEPREVIEW_SCOPE=global DEEPREVIEW_REF=v0.2.0 bash /tmp/deepreview-install.sh
+DEEPREVIEW_SCOPE=global DEEPREVIEW_REF=v0.2.1 bash /tmp/deepreview-install.sh
 ```
 
 To install only one of the two skills:
 
 ```bash
-DEEPREVIEW_SKILLS=deepreview DEEPREVIEW_REF=v0.2.0 bash /tmp/deepreview-install.sh
-DEEPREVIEW_SKILLS=deepaudit  DEEPREVIEW_REF=v0.2.0 bash /tmp/deepreview-install.sh
+DEEPREVIEW_SKILLS=deepreview DEEPREVIEW_REF=v0.2.1 bash /tmp/deepreview-install.sh
+DEEPREVIEW_SKILLS=deepaudit  DEEPREVIEW_REF=v0.2.1 bash /tmp/deepreview-install.sh
 ```
+
+### Windows (PowerShell)
+
+Same review-then-run pattern, using `Invoke-RestMethod` instead of
+`curl`:
+
+```powershell
+irm https://raw.githubusercontent.com/aiskool/deepreview-skill/main/install.ps1 -OutFile install.ps1
+notepad install.ps1   # review before running
+$env:DEEPREVIEW_REF = "v0.2.1"
+.\install.ps1
+```
+
+If your execution policy blocks the script, run it once with bypass:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+Variants follow the same env-var protocol as the Bash installer:
+
+```powershell
+# Global install
+$env:DEEPREVIEW_SCOPE = "global"; $env:DEEPREVIEW_REF = "v0.2.1"; .\install.ps1
+
+# Single skill
+$env:DEEPREVIEW_SKILLS = "deepreview"; $env:DEEPREVIEW_REF = "v0.2.1"; .\install.ps1
+```
+
+> **Bash is still required at runtime, even on Windows.** The skills'
+> runtime detector and several SKILL.md examples shell out to `bash`.
+> On Windows, ensure `bash` is on `PATH` via WSL (recommended), Git
+> for Windows (tick "Use Git and optional Unix tools" during install),
+> Cygwin, or MSYS2. Without `bash`, the skills fall back to
+> static-only verification on the executable axes (bugs, performance,
+> tests).
 
 ### Manual install
 
 ```bash
-git clone --depth 1 --branch v0.2.0 https://github.com/aiskool/deepreview-skill.git /tmp/deepreview-skill
+git clone --depth 1 --branch v0.2.1 https://github.com/aiskool/deepreview-skill.git /tmp/deepreview-skill
 cp -r /tmp/deepreview-skill/.claude/skills/* .claude/skills/
 cp /tmp/deepreview-skill/.claude/agents/*.md .claude/agents/
+# On Unix-like systems only:
 chmod +x .claude/skills/deepreview/detect-runtime.sh
 chmod +x .claude/skills/deepaudit/detect-runtime.sh
 ```
