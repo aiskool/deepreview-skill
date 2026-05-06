@@ -66,20 +66,54 @@ And stop. Do not start the run.
 Once a scope is parsed:
 
 1. Confirm the working directory is a git repository. Required for the
-   checkpoint mechanism in Phase 3.
-2. Generate `RUN_ID=$(date -u +%Y%m%d-%H%M%S)`.
-3. Create `.claude/audit/$RUN_ID/` and subfolders `findings/`,
+   checkpoint mechanism in Phase 3. Capture the absolute repo root:
+   `REPO=$(git rev-parse --show-toplevel)`. **Use `$REPO` as the
+   prefix for every path written to disk in this run** — relative
+   paths break across Bash invocations because each `Bash` tool call
+   spawns a fresh shell with no inherited cwd guarantee.
+2. Generate the run id and **persist it to `/tmp` so subsequent Bash
+   invocations can recover it**:
+   ```
+   RUN_ID=$(date -u +%Y%m%d-%H%M%S)
+   echo "$RUN_ID" > /tmp/deepaudit_run_id.txt
+   echo "$REPO"   > /tmp/deepaudit_repo.txt
+   ```
+   In every later Bash invocation, recover both with:
+   ```
+   RUN_ID=$(cat /tmp/deepaudit_run_id.txt)
+   REPO=$(cat /tmp/deepaudit_repo.txt)
+   ```
+   Without this, environment variables set in one Bash call do not
+   survive to the next.
+3. Create `$REPO/.claude/audit/$RUN_ID/` and subfolders `findings/`,
    `repro-tests/`, `logs/`.
 4. Walk the scope to build the file manifest. Skip generated/vendored
    directories: `node_modules/`, `vendor/`, `dist/`, `build/`,
    `.next/`, `.venv/`, `target/`, `__pycache__/`, `.git/`. Use `find`
    or `fd` and respect `.gitignore`.
-5. Write `manifest.json` with `{scope, axes, files, root}`.
-6. Run the runtime detector:
-   `bash .claude/skills/deepaudit/detect-runtime.sh > .claude/audit/$RUN_ID/runtime.json`.
+5. Write `$REPO/.claude/audit/$RUN_ID/manifest.json` with
+   `{scope, axes, files, root}`.
+6. Run the runtime detector with absolute paths:
+   ```
+   bash "$REPO/.claude/skills/deepaudit/detect-runtime.sh" \
+     > "$REPO/.claude/audit/$RUN_ID/runtime.json"
+   ```
 7. Read `DEEPAUDIT_MAX_FINDINGS` from environment (default 20). Store
    in `manifest.json` as `max_findings`.
-8. If the file manifest is empty (scope matched zero source files),
+8. **Derive a `scope_hint` slug** from the user's invocation. This is
+   used by Phase 6 to name the preserved report. Rules:
+   - Single axis (e.g. `deepaudit security`): slug = the axis name.
+   - Single path (e.g. `deepaudit src/auth/`): slug = last 1-2 path
+     components, lowercased, slashes and dots replaced by hyphens,
+     extension stripped (`src/auth/` → `auth`,
+     `backend/src/services/paypal.service.ts` → `paypal-service`).
+   - Axis + path: `<axis>-<path-slug>`.
+   - Multiple paths: pick the most distinctive shared parent or
+     concatenate the first 2 with `--` (e.g. `auth--billing`).
+   - Truncate to 40 chars. Fallback: `scope` if nothing meaningful
+     can be derived.
+   Persist the result: `echo "<slug>" > /tmp/deepaudit_scope_hint.txt`.
+9. If the file manifest is empty (scope matched zero source files),
    abort with an explanatory message.
 
 ## Phase 2 — Parallel fan-out
@@ -152,7 +186,10 @@ Apply the bounded-report logic:
      <max_findings>".
    - Else: take all `critical_verified`, then fill with
      `important_verified` until `max_findings` is reached.
-5. Write the final markdown report to `.claude/audit/$RUN_ID/report.md`:
+5. Write the final markdown report to
+   `$REPO/.claude/audit/$RUN_ID/report.md` (absolute path, recovered
+   via `REPO=$(cat /tmp/deepaudit_repo.txt)` and
+   `RUN_ID=$(cat /tmp/deepaudit_run_id.txt)`):
 
    ```
    # deepaudit — <run id>
@@ -179,8 +216,87 @@ Apply the bounded-report logic:
 
 ## Phase 5 — Lessons
 
-Append recurring patterns to `.claude/lessons.md` so subsequent audits
-can short-circuit. Only `critical` findings are added.
+Append recurring patterns to `$REPO/.claude/lessons.md` so subsequent
+audits can short-circuit. Only `critical` findings are added.
+
+> ⚠️ **`$REPO/.claude/lessons.md` is shared with other Claude Code
+> skills** (Autopilot and any others installed). It is NOT a
+> deepaudit-owned file. Phase 6 cleanup MUST NOT delete or modify it.
+
+This phase MUST run **before** Phase 6 cleanup, because lessons are
+extracted from the verified findings JSON which is about to be
+deleted.
+
+## Phase 6 — Persist report and cleanup intermediate artifacts
+
+The `<run-id>/` working directory contains intermediate artifacts
+(findings JSONs, manifest, runtime descriptor, repro tests, logs)
+that have no value once the report is synthesized and lessons are
+extracted. Without cleanup, repeat audits accumulate dozens of these
+folders. This phase preserves the report at a stable location and
+removes the per-run scratch directory.
+
+**Order of operations (do not reorder):**
+
+1. **Recover persistent variables** from `/tmp`:
+   ```bash
+   REPO=$(cat /tmp/deepaudit_repo.txt)
+   RUN_ID=$(cat /tmp/deepaudit_run_id.txt)
+   SCOPE_HINT=$(cat /tmp/deepaudit_scope_hint.txt)
+   ```
+
+2. **Sanity check before any `rm`**: abort cleanup if any of `$REPO`,
+   `$RUN_ID`, `$SCOPE_HINT` is empty. Print an error and stop. Never
+   run `rm -rf` with an unset variable.
+
+3. **Copy the report to its persistent location**:
+   ```bash
+   mkdir -p "$REPO/.claude/audit-reports"
+   cp "$REPO/.claude/audit/$RUN_ID/report.md" \
+      "$REPO/.claude/audit-reports/${RUN_ID}-${SCOPE_HINT}.md"
+   ```
+   The destination filename is `<run-id>-<scope-hint>.md` (e.g.
+   `20260506-092357-auth-surface.md`). This directory is the durable
+   record of all past audits.
+
+4. **Verify the copy succeeded** before deleting the source:
+   ```bash
+   test -s "$REPO/.claude/audit-reports/${RUN_ID}-${SCOPE_HINT}.md" \
+     || { echo "report copy failed; aborting cleanup" >&2; exit 1; }
+   ```
+
+5. **Delete only the per-run scratch directory**:
+   ```bash
+   rm -rf "$REPO/.claude/audit/$RUN_ID"
+   ```
+
+   **CRITICAL safety rules for this `rm`:**
+   - The path MUST be exactly `"$REPO/.claude/audit/$RUN_ID"` —
+     never the parent `.claude/audit/`, never `.claude/`, never
+     anything broader.
+   - **NEVER touch `$REPO/.claude/lessons.md`** — that file is
+     shared with other skills and must persist across audit runs.
+   - **NEVER touch other entries inside `$REPO/.claude/`** —
+     `skills/`, `agents/`, `audit-reports/`, `lessons.md`, or any
+     skill-specific files. Only the specific `audit/$RUN_ID/`
+     subfolder is in scope for deletion.
+   - **NEVER delete `$REPO/.claude/audit/`** itself (the parent
+     directory of per-run subdirs). It is the canonical workspace
+     for future runs and may already contain other run-id folders
+     from concurrent or recent runs.
+
+6. **Clean up `/tmp` markers**:
+   ```bash
+   rm -f /tmp/deepaudit_run_id.txt /tmp/deepaudit_repo.txt \
+         /tmp/deepaudit_scope_hint.txt
+   ```
+
+7. **Print the final user-facing line**:
+   ```bash
+   echo "Report saved: .claude/audit-reports/${RUN_ID}-${SCOPE_HINT}.md"
+   ```
+   The user knows exactly where to look. No run-id directories left
+   behind, lessons preserved, working tree clean.
 
 ## Failure handling
 

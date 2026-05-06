@@ -1,7 +1,3 @@
-################################################################################################
-					DEEPREVIEW
-################################################################################################
-
 # deepreview-skill
 
 Two complementary multi-agent code-quality skills for Claude Code,
@@ -35,8 +31,11 @@ Six specialist reviewers run in parallel over a git diff:
 A `verifier` agent then reproduces each finding by writing and running
 a reproduction test (for executable axes) or by careful static
 walkthrough (security, architecture, docs). Findings that cannot be
-reproduced are dropped. The final report is at
-`.claude/review/<run-id>/report.md`, sorted by severity.
+reproduced are dropped. **The final report is preserved at
+`.claude/review-reports/<run-id>-<scope-hint>.md`** (the per-run
+working directory `.claude/review/<run-id>/` is cleaned up automatically
+to prevent accumulation across reviews). Reports are sorted by
+severity.
 
 **Invocation.**
 
@@ -45,9 +44,6 @@ deepreview                          # diff vs default branch
 deepreview PR 1234                  # specific GitHub PR
 deepreview against origin/develop   # diff vs another base
 ```
-################################################################################################
-					DEEPAUDIT
-################################################################################################
 
 ## deepaudit — audit of existing code
 
@@ -63,10 +59,12 @@ Six specialist auditors run in parallel over a scope you specify:
 | Documentation  | `auditor-documentation`    | No        |
 
 An `auditor-verifier` agent then independently reproduces every
-finding the same way the reviewer's verifier does. The final report
-contains the **top N most critical issues** (default 20, configurable
-via `DEEPAUDIT_MAX_FINDINGS`). Nice-to-have findings are dropped
-entirely so the report stays actionable.
+finding the same way the reviewer's verifier does. **The final report
+is preserved at `.claude/audit-reports/<run-id>-<scope-hint>.md`** (the
+per-run working directory `.claude/audit/<run-id>/` is cleaned up
+automatically). The report contains the **top N most critical issues**
+(default 20, configurable via `DEEPAUDIT_MAX_FINDINGS`). Nice-to-have
+findings are dropped entirely so the report stays actionable.
 
 **Invocation.** A scope is required; the skill refuses to run without one.
 
@@ -80,10 +78,6 @@ deepaudit src/auth/ src/billing/    # all six, on the union of paths
 Valid axes: `security`, `architecture`, `bugs`, `performance`,
 `tests`, `docs`. Synonyms accepted: `bug-hunter`, `test-coverage`,
 `documentation`.
-
-################################################################################################
-					INSTALLATION
-################################################################################################
 
 ## Install
 
@@ -124,10 +118,6 @@ chmod +x .claude/skills/deepaudit/detect-runtime.sh
 After installation, restart your Claude Code session so the new
 agents are loaded.
 
-################################################################################################
-					RUNTIME SUPPORT
-################################################################################################
-
 ## Runtime support
 
 The runtime detector recognizes Node (npm/yarn/pnpm/bun), Python
@@ -148,10 +138,6 @@ work; executable axes fall back to static-only verification.
 - **Not a replacement for human review.** A reviewer who knows the
   product, the users, and the roadmap catches what no agent will.
 
-################################################################################################
-					SAFETY
-################################################################################################
-
 ## Safety
 
 - All reviewer and auditor agents are read-only on source files.
@@ -162,6 +148,10 @@ work; executable axes fall back to static-only verification.
   is reset afterwards.
 - The verifier never executes exploit payloads. Security verification
   is intellectual, not active.
+- After each run, the working directory is cleaned up; the final
+  report is preserved at `.claude/review-reports/` or
+  `.claude/audit-reports/`. **`.claude/lessons.md` is shared across
+  skills (e.g. Autopilot) and is never deleted by these skills.**
 
 ## License
 

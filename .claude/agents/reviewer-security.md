@@ -3,8 +3,8 @@ name: reviewer-security
 description: Read-only security reviewer. Hunts for injection vectors,
   auth/authz gaps, secret leakage, unsafe deserialization, weak crypto,
   and unsafe defaults inside a code diff. Emits structured JSON findings.
-  Never modifies files.
-tools: Read, Grep, Glob
+  Writes only its findings JSON to the provided output_path. Never modifies source files.
+tools: Read, Grep, Glob, Write
 model: inherit
 ---
 

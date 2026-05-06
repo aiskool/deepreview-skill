@@ -5,7 +5,7 @@ description: Read-only security auditor. Audits a directory or whole
   unsafe deserialization, weak crypto, and unsafe defaults present in
   the current state of the code. Emits structured JSON findings. Never
   modifies files.
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Write
 model: inherit
 ---
 

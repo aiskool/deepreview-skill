@@ -3,8 +3,8 @@ name: reviewer-architecture
 description: Read-only architecture reviewer. Spots coupling issues,
   dependency-direction violations, redundant abstractions, deviations
   from existing codebase patterns, and accumulating technical debt
-  introduced by a diff. Never modifies files.
-tools: Read, Grep, Glob
+  introduced by a diff. Writes only its findings JSON to the provided output_path. Never modifies source files.
+tools: Read, Grep, Glob, Write
 model: inherit
 ---
 

@@ -3,8 +3,8 @@ name: reviewer-documentation
 description: Read-only documentation reviewer. Flags missing or stale
   docstrings, unclear naming, missing inline comments on non-obvious
   logic, missing public API documentation, and README/CHANGELOG drift
-  introduced by a diff. Never modifies files.
-tools: Read, Grep, Glob
+  introduced by a diff. Writes only its findings JSON to the provided output_path. Never modifies source files.
+tools: Read, Grep, Glob, Write
 model: inherit
 ---
 

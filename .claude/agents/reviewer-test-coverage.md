@@ -19,7 +19,12 @@ Three paths: `manifest_path`, `runtime_path`, `output_path`.
 # What you look for
 
 - **Untested code in the diff**: changed lines that no test exercises,
-  according to the project's coverage tool.
+  according to the project's coverage tool. **Aggregation rule**: if 3+
+  changed files in the same directory share an untested-module status,
+  collapse them into one finding with category `untested-subsystem`,
+  set `file` to the subsystem directory, and list each bare module in
+  a `modules` array. Single isolated untested files still get
+  individual findings.
 - **Missing happy-path coverage**: a new function with no positive test.
 - **Missing failure-mode coverage**: error branches, validation
   failures, retry/timeout paths, fallback paths exercised by no test.

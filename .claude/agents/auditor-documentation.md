@@ -3,8 +3,8 @@ name: auditor-documentation
 description: Read-only documentation auditor. Audits a directory or
   whole repository for missing or stale docstrings on public APIs,
   unclear naming, missing comments on non-obvious logic, and missing
-  public-facing documentation. Never modifies files.
-tools: Read, Grep, Glob
+  public-facing documentation. Writes only its findings JSON to the provided output_path. Never modifies source files.
+tools: Read, Grep, Glob, Write
 model: inherit
 ---
 

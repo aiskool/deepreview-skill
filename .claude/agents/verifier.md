@@ -41,6 +41,31 @@ Update the finding in place by adding two fields:
 Write the updated finding back to `<run_dir>/findings/_verified/<finding.id>.json`.
 Print one line to stdout: `<finding.id>: verified=<bool> (<short reason>)`.
 
+# Cross-axis deduplication (do this BEFORE verification)
+
+The six reviewer agents work in parallel and frequently rediscover the
+same root cause from different angles (a hardcoded fallback secret is
+both a security issue and a bug; a missing transaction is both
+architecture and a bug). Reporting both wastes the user's report
+budget on duplicate guidance.
+
+Before running the verification strategy, inspect the other findings
+the orchestrator passes to you (or in
+`<run_dir>/findings/_all.json` if available). If the current finding
+shares root cause AND surface (file + ±20 lines) with a finding from
+another axis:
+
+1. Pick the keeper using axis precedence:
+   `security > bugs > tests > performance > architecture > docs`.
+2. If the current finding is the keeper, proceed normally.
+3. If it is the loser, mark it `verified: false` with reason
+   `merged-into-<other-finding-id>`. Do NOT spend further compute on
+   reproduction.
+
+Same root cause means same fix would resolve both findings. Same
+surface means file paths match and line ranges overlap or are
+adjacent. When in doubt, do not merge — verify both.
+
 # Verification strategy by axis
 
 ## bugs (executable)

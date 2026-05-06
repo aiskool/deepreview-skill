@@ -3,8 +3,8 @@ name: auditor-architecture
 description: Read-only architecture auditor. Audits a directory or
   whole repository for actual coupling problems, dependency-direction
   violations, redundant abstractions, dead code, and circular imports
-  in the current codebase. Never modifies files.
-tools: Read, Grep, Glob
+  in the current codebase. Writes only its findings JSON to the provided output_path. Never modifies source files.
+tools: Read, Grep, Glob, Write
 model: inherit
 ---
 
