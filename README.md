@@ -1,7 +1,10 @@
 # deepreview-skill
 
-Two complementary multi-agent code-quality skills for Claude Code,
-shipped together in the same repository.
+Multi-agent code review and audit for Claude Code, with independent
+verification of every finding.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/aiskool/deepreview-skill)](https://github.com/aiskool/deepreview-skill/releases/latest)
 
 | Skill        | When to use it                                                  |
 |--------------|-----------------------------------------------------------------|
@@ -15,58 +18,95 @@ shipped together in the same repository.
 > Neither is a port of Anthropic's internal implementation. Both run
 > locally in your Claude Code session, not in a remote sandbox.
 
-## deepreview — pre-merge review
+> 📘 **User tutorial (PDF, French)** —
+> [`docs/tutoriel.pdf`](./docs/tutoriel.pdf): a 12-page walkthrough of
+> installation, daily usage, report reading, safety guarantees, and
+> troubleshooting. Renders inline on GitHub.
 
-Six specialist reviewers run in parallel over a git diff:
+---
 
-| Axis           | Sub-agent                  | Executes? |
-|----------------|----------------------------|-----------|
-| Security       | `reviewer-security`        | No        |
-| Architecture   | `reviewer-architecture`    | No        |
-| Bugs           | `reviewer-bug-hunter`      | Yes       |
-| Performance    | `reviewer-performance`     | Yes       |
-| Test coverage  | `reviewer-test-coverage`   | Yes       |
-| Documentation  | `reviewer-documentation`   | No        |
+## Quickstart
 
-A `verifier` agent then reproduces each finding by writing and running
-a reproduction test (for executable axes) or by careful static
-walkthrough (security, architecture, docs). Findings that cannot be
-reproduced are dropped. **The final report is preserved at
-`.claude/review-reports/<run-id>-<scope-hint>.md`** (the per-run
-working directory `.claude/review/<run-id>/` is cleaned up automatically
-to prevent accumulation across reviews). Reports are sorted by
-severity.
+```bash
+# 1. Install (review-then-run pattern)
+curl -fsSL https://raw.githubusercontent.com/aiskool/deepreview-skill/main/install.sh -o /tmp/install.sh
+less /tmp/install.sh                           # review before running
+DEEPREVIEW_REF=v0.2.1 bash /tmp/install.sh
 
-**Invocation.**
+# 2. Restart your Claude Code session
+
+# 3. Run
+deepreview                                     # review your current branch
+deepaudit src/auth/                            # audit a directory
+```
+
+Windows users: see [PowerShell install](#windows-powershell) below.
+For global install, single-skill install, or pinning details:
+[full install options](#install).
+
+---
+
+## How it works
+
+Both skills follow the same pattern: **six specialist agents fan out
+in parallel, then an independent verifier reproduces every finding
+before it reaches the report.** Findings that cannot be reproduced
+are dropped. This is what makes the report's signal-to-noise ratio
+much higher than a static linter.
+
+### The six axes
+
+| Axis           | `deepreview` agent          | `deepaudit` agent          | Reproduction strategy                   |
+|----------------|-----------------------------|----------------------------|------------------------------------------|
+| Security       | `reviewer-security`         | `auditor-security`         | Static walkthrough of the exploit chain |
+| Architecture   | `reviewer-architecture`     | `auditor-architecture`     | Static review of the structural claim   |
+| Bugs           | `reviewer-bug-hunter`       | `auditor-bug-hunter`       | A test that fails on current code       |
+| Performance    | `reviewer-performance`      | `auditor-performance`      | A timed micro-benchmark                 |
+| Test coverage  | `reviewer-test-coverage`    | `auditor-test-coverage`    | Coverage report intersection            |
+| Documentation  | `reviewer-documentation`    | `auditor-documentation`    | Static comparison of code vs docs       |
+
+Plus a `verifier` (deepreview) or `auditor-verifier` (deepaudit)
+that runs the reproduction strategy for every finding. Verifiers
+also deduplicate across axes — a hardcoded fallback secret reported
+both as a security issue and a bug is merged into a single finding,
+under the most precise axis.
+
+### What you get
+
+Reports are preserved at a stable, durable location:
+
+| Skill        | Report location                                              |
+|--------------|--------------------------------------------------------------|
+| `deepreview` | `.claude/review-reports/<run-id>-<scope-hint>.md`            |
+| `deepaudit`  | `.claude/audit-reports/<run-id>-<scope-hint>.md`             |
+
+The per-run working directory (`.claude/review/<run-id>/` or
+`.claude/audit/<run-id>/`) is cleaned up automatically. The
+`.claude/lessons.md` file — shared with other skills like Autopilot —
+is never deleted.
+
+For `deepaudit`, the report is capped at the **top N most critical
+issues** (default 20, configurable via `DEEPAUDIT_MAX_FINDINGS`).
+Nice-to-have findings are dropped entirely. The report explicitly
+notes how many additional findings exist beyond the cap.
+
+---
+
+## Usage
+
+### deepreview — review a diff
 
 ```
-deepreview                          # diff vs default branch
+deepreview                          # diff vs default branch (main/master)
 deepreview PR 1234                  # specific GitHub PR
 deepreview against origin/develop   # diff vs another base
 ```
 
-## deepaudit — audit of existing code
+Typical run: 5 to 15 minutes depending on diff size.
 
-Six specialist auditors run in parallel over a scope you specify:
+### deepaudit — audit existing code
 
-| Axis           | Sub-agent                  | Executes? |
-|----------------|----------------------------|-----------|
-| Security       | `auditor-security`         | No        |
-| Architecture   | `auditor-architecture`     | No        |
-| Bugs           | `auditor-bug-hunter`       | Yes       |
-| Performance    | `auditor-performance`      | Yes       |
-| Test coverage  | `auditor-test-coverage`    | Yes       |
-| Documentation  | `auditor-documentation`    | No        |
-
-An `auditor-verifier` agent then independently reproduces every
-finding the same way the reviewer's verifier does. **The final report
-is preserved at `.claude/audit-reports/<run-id>-<scope-hint>.md`** (the
-per-run working directory `.claude/audit/<run-id>/` is cleaned up
-automatically). The report contains the **top N most critical issues**
-(default 20, configurable via `DEEPAUDIT_MAX_FINDINGS`). Nice-to-have
-findings are dropped entirely so the report stays actionable.
-
-**Invocation.** A scope is required; the skill refuses to run without one.
+A scope is **required**; the skill refuses to run without one.
 
 ```
 deepaudit src/auth/                 # all six auditors on src/auth/
@@ -79,73 +119,55 @@ Valid axes: `security`, `architecture`, `bugs`, `performance`,
 `tests`, `docs`. Synonyms accepted: `bug-hunter`, `test-coverage`,
 `documentation`.
 
+---
+
 ## Install
 
-The repository ships two installer scripts: a Bash one for Unix-like
-shells (macOS, Linux, or Windows with WSL/Git Bash) and a PowerShell
-one for native Windows. Both honour the same environment-variable
-protocol (`DEEPREVIEW_SCOPE`, `DEEPREVIEW_REF`, `DEEPREVIEW_REPO`,
-`DEEPREVIEW_SKILLS`) and produce identical layouts under `.claude/`.
+The repository ships two installer scripts that honour the same
+environment-variable protocol (`DEEPREVIEW_SCOPE`, `DEEPREVIEW_REF`,
+`DEEPREVIEW_REPO`, `DEEPREVIEW_SKILLS`) and produce identical layouts
+under `.claude/`.
 
 ### macOS, Linux, or Windows with WSL/Git Bash
 
-Review the install script first, then run it. The script installs
-both skills into `.claude/` of the current git repository.
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aiskool/deepreview-skill/main/install.sh -o /tmp/deepreview-install.sh
-less /tmp/deepreview-install.sh   # review before running
+less /tmp/deepreview-install.sh                # review before running
 DEEPREVIEW_REF=v0.2.1 bash /tmp/deepreview-install.sh
 ```
 
-For a global install (available in every project):
+Variants:
 
 ```bash
+# Global install (available in every project)
 DEEPREVIEW_SCOPE=global DEEPREVIEW_REF=v0.2.1 bash /tmp/deepreview-install.sh
-```
 
-To install only one of the two skills:
-
-```bash
+# Single skill
 DEEPREVIEW_SKILLS=deepreview DEEPREVIEW_REF=v0.2.1 bash /tmp/deepreview-install.sh
 DEEPREVIEW_SKILLS=deepaudit  DEEPREVIEW_REF=v0.2.1 bash /tmp/deepreview-install.sh
 ```
 
 ### Windows (PowerShell)
 
-Same review-then-run pattern, using `Invoke-RestMethod` instead of
-`curl`:
-
 ```powershell
 irm https://raw.githubusercontent.com/aiskool/deepreview-skill/main/install.ps1 -OutFile install.ps1
-notepad install.ps1   # review before running
+notepad install.ps1                            # review before running
 $env:DEEPREVIEW_REF = "v0.2.1"
 .\install.ps1
 ```
 
-If your execution policy blocks the script, run it once with bypass:
+If your execution policy blocks the script:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-Variants follow the same env-var protocol as the Bash installer:
-
-```powershell
-# Global install
-$env:DEEPREVIEW_SCOPE = "global"; $env:DEEPREVIEW_REF = "v0.2.1"; .\install.ps1
-
-# Single skill
-$env:DEEPREVIEW_SKILLS = "deepreview"; $env:DEEPREVIEW_REF = "v0.2.1"; .\install.ps1
-```
-
 > **Bash is still required at runtime, even on Windows.** The skills'
 > runtime detector and several SKILL.md examples shell out to `bash`.
-> On Windows, ensure `bash` is on `PATH` via WSL (recommended), Git
-> for Windows (tick "Use Git and optional Unix tools" during install),
-> Cygwin, or MSYS2. Without `bash`, the skills fall back to
-> static-only verification on the executable axes (bugs, performance,
-> tests).
+> Ensure `bash` is on `PATH` via WSL (recommended), Git for Windows
+> (tick "Use Git and optional Unix tools" during install), Cygwin, or
+> MSYS2. Without `bash`, executable axes fall back to static-only
+> verification.
 
 ### Manual install
 
@@ -161,6 +183,8 @@ chmod +x .claude/skills/deepaudit/detect-runtime.sh
 After installation, restart your Claude Code session so the new
 agents are loaded.
 
+---
+
 ## Runtime support
 
 The runtime detector recognizes Node (npm/yarn/pnpm/bun), Python
@@ -169,6 +193,8 @@ The runtime detector recognizes Node (npm/yarn/pnpm/bun), Python
 repositories are fine — multiple stacks are returned in priority
 order. If your stack is not recognized, the static-only axes still
 work; executable axes fall back to static-only verification.
+
+---
 
 ## What this is NOT
 
@@ -181,21 +207,32 @@ work; executable axes fall back to static-only verification.
 - **Not a replacement for human review.** A reviewer who knows the
   product, the users, and the roadmap catches what no agent will.
 
+Expect 5 to 15 % of findings to be debatable on a typical run
+(misread flow, severity slightly off, etc.). Read the report
+critically — every finding is a starting point for a conversation
+with the code, not a verdict.
+
+---
+
 ## Safety
 
-- All reviewer and auditor agents are read-only on source files.
-- The verifier agents may write files **only inside the per-run
-  output directory** (`.claude/review/<run-id>/` or
+- All reviewer and auditor agents are **read-only** on source files.
+- The verifier agents may write files **only** inside the per-run
+  output directory (`.claude/review/<run-id>/` or
   `.claude/audit/<run-id>/`).
 - A git checkpoint is created before verification; the working tree
   is reset afterwards.
-- The verifier never executes exploit payloads. Security verification
-  is intellectual, not active.
+- The verifier **never executes exploit payloads**. Security
+  verification is intellectual, not active.
 - After each run, the working directory is cleaned up; the final
-  report is preserved at `.claude/review-reports/` or
-  `.claude/audit-reports/`. **`.claude/lessons.md` is shared across
+  report is preserved. **`.claude/lessons.md` is shared across
   skills (e.g. Autopilot) and is never deleted by these skills.**
+
+To report a vulnerability, open a private security advisory at
+[github.com/aiskool/deepreview-skill/security/advisories](https://github.com/aiskool/deepreview-skill/security/advisories).
+
+---
 
 ## License
 
-MIT.
+MIT — see [LICENSE](./LICENSE).
